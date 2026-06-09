@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+  <div class="grid-floor"></div>
+
+  <div class="auth-container content-layer">
+    <h1><span class="neon-purple">Sign</span> <span class="neon-gold">In</span></h1>
+    <div class="auth-divider"></div>
+
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:1rem;">
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Email</label>
+        <input name="email" type="email" required autocomplete="email" class="input" placeholder="you@example.com" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Password</label>
+        <input name="password" type="password" required class="input" placeholder="••••••••" style="margin-top:.4rem;">
+      </div>
+      <p id="errMsg" style="color:#f87171;font-size:.85rem;display:none;"></p>
+      <button type="submit" class="btn btn-gold" style="margin-top:.5rem;width:100%;font-size:.95rem;padding:.75rem;">
+        Access System
+      </button>
+    </form>
+
+    <p style="margin-top:1.25rem;text-align:center;font-size:.85rem;color:var(--text-muted);">
+      No account? <a href="register.html" style="color:var(--gold);text-decoration:none;font-weight:600;">Register →</a>
+    </p>
+    <p style="margin-top:.5rem;text-align:center;font-size:.85rem;color:var(--text-muted);">
+      Want to sell? <a href="vendor-register.html" style="color:var(--purple);text-decoration:none;font-weight:600;">Open a Store →</a>
+    </p>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { cartStore } from '../js/cart-store.js';
+
+    if (auth.isLoggedIn()) location.href = '../index.html';
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]');
+      const err = document.getElementById('errMsg');
+      err.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Connecting…';
+      try {
+        const fd = new FormData(e.target);
+        // 1. Login to get token
+        const { token, user: baseUser } = await api.post('/auth/login', {
+          email: fd.get('email'), password: fd.get('password'),
+        });
+        // 2. Save token first so refresh() can use it
+        auth.save(token, baseUser);
+        // 3. Fetch full profile (includes vendor.id, vendor.status)
+        const user = await auth.refresh() || baseUser;
+        // 4. Merge any guest cart items
+        await cartStore.mergeOnLogin();
+        // 5. Redirect based on role (relative paths — work on any port)
+        if (user.role === 'ADMIN')   location.href = 'admin-dashboard.html';
+        else if (user.role === 'VENDOR') location.href = 'vendor-dashboard.html';
+        else location.href = '../index.html';
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Access System';
+      }
+    });
+  </script>
+</body>
+</html>

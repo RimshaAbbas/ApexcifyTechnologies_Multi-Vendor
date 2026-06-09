@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Orders — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+    <main style="max-width:1100px;margin:0 auto;padding:2rem 2rem 4rem;">
+      <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:1.75rem;">
+        <span class="neon-purple">My</span> <span class="neon-gold">Orders</span>
+      </h1>
+      <div id="spinner" style="display:flex;justify-content:center;padding:4rem;"><div class="spinner"></div></div>
+      <div id="orderList" style="display:none;flex-direction:column;gap:1rem;"></div>
+    </main>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api, assetUrl } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { renderNavbar } from '../js/navbar.js';
+
+    if (!auth.require('CUSTOMER')) throw new Error();
+    await renderNavbar();
+
+    const SC = { PENDING:'badge-yellow', PROCESSING:'badge-purple', SHIPPED:'badge-purple', DELIVERED:'badge-green', CANCELLED:'badge-red' };
+
+    const { data: orders } = await api.get('/orders').catch(() => ({ data: [] }));
+    document.getElementById('spinner').style.display = 'none';
+    const listEl = document.getElementById('orderList');
+    listEl.style.display = 'flex';
+
+    if (!orders.length) {
+      listEl.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-muted);">
+        <p style="font-size:1.1rem;margin-bottom:1rem;">No orders yet</p>
+        <a href="/index.html" class="btn btn-gold" style="text-decoration:none;">Start Shopping</a>
+      </div>`;
+    } else {
+      listEl.innerHTML = orders.map((o, i) => `
+        <div class="glass card-enter" style="padding:1.25rem;animation-delay:${i*0.06}s;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;">
+            <div>
+              <p style="font-size:.75rem;font-family:monospace;color:var(--text-muted);">Order #${o.id.slice(-8).toUpperCase()}</p>
+              <p style="font-size:.8rem;color:var(--text-muted);margin-top:.15rem;">${new Date(o.createdAt).toLocaleDateString()}</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:.75rem;">
+              <span style="font-size:1.1rem;font-weight:700;color:var(--gold);">$${Number(o.totalAmount).toFixed(2)}</span>
+              <span class="badge ${SC[o.status]||'badge-purple'}">${o.status}</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.5rem;">
+            ${o.items.map((item) => `
+              <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0;border-top:1px solid rgba(138,43,226,0.1);">
+                <img src="${assetUrl(item.product?.imageUrls?.[0])||'https://placehold.co/48x48/0a0512/8a2be2?text=?'}"
+                  style="width:48px;height:48px;object-fit:cover;border-radius:var(--radius);">
+                <div style="flex:1;">
+                  <p style="font-size:.875rem;font-weight:600;color:var(--text);">${item.product?.title}</p>
+                  <p style="font-size:.75rem;color:var(--text-muted);">Qty: ${item.quantity} × $${Number(item.priceAtPurchase).toFixed(2)}</p>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`).join('');
+    }
+  </script>
+</body>
+</html>

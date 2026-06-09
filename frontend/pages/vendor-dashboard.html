@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vendor Dashboard — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+    <main style="max-width:1440px;margin:0 auto;padding:2rem 2rem 4rem;">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.75rem;flex-wrap:wrap;gap:1rem;">
+        <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">
+          <span class="neon-purple">Vendor</span> <span class="neon-gold">Dashboard</span>
+        </h1>
+        <a href="vendor-products.html" class="btn btn-gold" style="text-decoration:none;">+ Manage Products</a>
+      </div>
+
+      <div id="spinner" style="display:flex;justify-content:center;padding:4rem;"><div class="spinner"></div></div>
+      <div id="content" style="display:none;">
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
+          <div class="stat-card"><p class="stat-label">Total Revenue</p><p id="revenue" class="stat-value">—</p></div>
+          <div class="stat-card"><p class="stat-label">Total Orders</p><p id="orders" class="stat-value" style="color:var(--text);">—</p></div>
+          <div class="stat-card"><p class="stat-label">Pending Items</p><p id="pending" class="stat-value" style="color:#facc15;">—</p></div>
+          <div class="stat-card"><p class="stat-label">Low Stock</p><p id="lowCount" class="stat-value" style="color:#f87171;">—</p></div>
+        </div>
+
+        <!-- Low stock alerts -->
+        <div id="lowSection" style="display:none;margin-bottom:2rem;">
+          <h2 style="font-size:1rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#f87171;margin-bottom:.75rem;">⚠ Low Stock Alerts</h2>
+          <div id="lowList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.75rem;"></div>
+        </div>
+
+        <!-- Recent orders table -->
+        <h2 style="font-size:1rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.75rem;">Recent Order Items</h2>
+        <div style="background:var(--void-card);border:1px solid rgba(138,43,226,0.2);border-radius:var(--radius-lg);overflow:hidden;backdrop-filter:blur(12px);">
+          <div style="overflow-x:auto;">
+            <table class="cyber-table">
+              <thead><tr><th>Product</th><th>Order</th><th>Qty</th><th>Revenue</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody id="ordersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { renderNavbar } from '../js/navbar.js';
+    import { toast } from '../js/toast.js';
+
+    if (!auth.require('VENDOR')) throw new Error();
+    await renderNavbar();
+
+    const SC = { PENDING:'badge-yellow', PROCESSING:'badge-purple', SHIPPED:'badge-purple', DELIVERED:'badge-green', CANCELLED:'badge-red' };
+
+    try {
+      const { data } = await api.get('/vendors/dashboard');
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      document.getElementById('revenue').textContent = `$${Number(data.totalRevenue).toFixed(2)}`;
+      document.getElementById('orders').textContent  = data.totalOrders;
+      document.getElementById('pending').textContent = data.pendingItems;
+      document.getElementById('lowCount').textContent = data.lowStock.length;
+
+      if (data.lowStock.length) {
+        document.getElementById('lowSection').style.display = 'block';
+        document.getElementById('lowList').innerHTML = data.lowStock.map((p) => `
+          <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius);padding:.75rem;">
+            <p style="font-weight:600;font-size:.875rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.title}</p>
+            <p style="color:#f87171;font-size:.75rem;margin-top:.25rem;">${p.stockQty} left</p>
+          </div>`).join('');
+      }
+
+      document.getElementById('ordersBody').innerHTML = data.recentItems.length
+        ? data.recentItems.map((i) => `
+          <tr>
+            <td style="font-weight:600;">${i.product.title}</td>
+            <td style="font-family:monospace;font-size:.8rem;color:var(--text-muted);">#${i.order.id.slice(-8).toUpperCase()}</td>
+            <td>${i.quantity}</td>
+            <td style="color:var(--gold);font-weight:700;">$${(Number(i.priceAtPurchase)*i.quantity).toFixed(2)}</td>
+            <td><span class="badge ${SC[i.order.status]||'badge-purple'}">${i.order.status}</span></td>
+            <td style="color:var(--text-muted);font-size:.8rem;">${new Date(i.order.createdAt).toLocaleDateString()}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">No orders yet.</td></tr>';
+    } catch (ex) {
+      toast(ex.message, 'error');
+      document.getElementById('spinner').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open Your Store — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;">
+  <div class="grid-floor"></div>
+
+  <div class="auth-container content-layer">
+    <h1><span class="neon-gold">Open Your</span> <span class="neon-purple">Store</span></h1>
+    <div class="auth-divider"></div>
+
+    <form id="vendorRegForm" style="display:flex;flex-direction:column;gap:1rem;">
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Full Name</label>
+        <input name="name" type="text" required class="input" placeholder="Jane Smith" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Email</label>
+        <input name="email" type="email" required autocomplete="email" class="input" placeholder="you@example.com" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Password <span style="color:var(--text-muted);font-weight:400;letter-spacing:0;">(min 8 chars)</span></label>
+        <input name="password" type="password" required minlength="8" class="input" placeholder="••••••••" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);">Store Name</label>
+        <input name="storeName" type="text" required class="input" placeholder="My Awesome Shop" style="margin-top:.4rem;border-color:var(--gold);box-shadow:var(--glow-border-gold);">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Store Description <span style="color:var(--text-muted);font-weight:400;letter-spacing:0;">(optional)</span></label>
+        <textarea name="description" rows="3" class="input" placeholder="Tell customers what you sell…" style="margin-top:.4rem;resize:vertical;"></textarea>
+      </div>
+      <p id="errMsg" style="color:#f87171;font-size:.85rem;display:none;"></p>
+      <button type="submit" class="btn btn-gold" style="margin-top:.5rem;width:100%;font-size:.95rem;padding:.75rem;">
+        Launch Store
+      </button>
+    </form>
+
+    <p style="margin-top:1.25rem;text-align:center;font-size:.85rem;color:var(--text-muted);">
+      Already have an account? <a href="login.html" style="color:var(--gold);text-decoration:none;font-weight:600;">Sign in →</a>
+    </p>
+    <p style="margin-top:.5rem;text-align:center;font-size:.85rem;color:var(--text-muted);">
+      Just a customer? <a href="register.html" style="color:var(--purple);text-decoration:none;font-weight:600;">Register here →</a>
+    </p>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+
+    if (auth.isLoggedIn()) location.href = '../index.html';
+
+    document.getElementById('vendorRegForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]');
+      const err = document.getElementById('errMsg');
+      err.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Launching…';
+      try {
+        const fd = new FormData(e.target);
+        const { token, user } = await api.post('/auth/register-vendor', {
+          name: fd.get('name'),
+          email: fd.get('email'),
+          password: fd.get('password'),
+          storeName: fd.get('storeName'),
+          description: fd.get('description'),
+        });
+        auth.save(token, user);
+        location.href = 'vendor-dashboard.html';
+      } catch (ex) {
+        const detail = ex.data?.errors?.map(e => e.message).join(', ') || ex.message;
+        err.textContent = detail;
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Launch Store';
+      }
+    });
+  </script>
+</body>
+</html>

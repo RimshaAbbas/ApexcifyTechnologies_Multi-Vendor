@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    @media(max-width:640px){ .prod-grid{ grid-template-columns:1fr !important; } }
+  </style>
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+    <main style="max-width:1200px;margin:0 auto;padding:2rem 2rem 4rem">
+      <div id="spinner" style="display:flex;justify-content:center;padding:6rem"><div class="spinner"></div></div>
+      <div id="content" style="display:none"></div>
+    </main>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api, assetUrl } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { cartStore } from '../js/cart-store.js';
+    import { renderNavbar } from '../js/navbar.js';
+    import { toast } from '../js/toast.js';
+
+    await renderNavbar();
+
+    const id = new URLSearchParams(location.search).get('id');
+    if (!id) { location.href = '../index.html'; throw new Error(); }
+
+    const { data: p } = await api.get(`/products/${id}`).catch(() => ({ data: null }));
+    document.getElementById('spinner').style.display = 'none';
+
+    if (!p) {
+      document.getElementById('content').innerHTML = '<p style="color:#f87171;text-align:center;padding:4rem;font-size:1.1rem">Product not found.</p>';
+      document.getElementById('content').style.display = 'block';
+    } else {
+      document.title = `${p.title} — MultiVendor`;
+      const stars = r => '★'.repeat(Math.max(0,Math.min(5,Math.round(r)))) + '☆'.repeat(5-Math.max(0,Math.min(5,Math.round(r))));
+
+      document.getElementById('content').innerHTML = `
+        <a href="../index.html" style="display:inline-flex;align-items:center;gap:.4rem;color:var(--text-muted);text-decoration:none;font-size:.85rem;margin-bottom:1.5rem;">
+          ← Back to Shop
+        </a>
+        <div class="prod-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start">
+
+          <!-- Gallery -->
+          <div>
+            <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid rgba(138,43,226,0.25)">
+              <img id="mainImg" src="${assetUrl(p.imageUrls?.[0])||'https://placehold.co/600x400/0a0512/8a2be2?text=No+Image'}"
+                style="width:100%;max-height:400px;object-fit:cover;display:block;transition:transform .4s ease"
+                onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
+              ${(p.imageUrls||[]).map(url=>`
+                <img src="${assetUrl(url)}" data-src="${assetUrl(url)}" style="width:64px;height:64px;object-fit:cover;border-radius:var(--radius);border:1px solid rgba(138,43,226,0.3);cursor:pointer;transition:border-color .2s"
+                  onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='rgba(138,43,226,0.3)'">`).join('')}
+            </div>
+          </div>
+
+          <!-- Details -->
+          <div style="display:flex;flex-direction:column;gap:1.1rem">
+            <span class="badge badge-purple" style="align-self:flex-start">${p.category}</span>
+            <h1 style="font-size:1.75rem;font-weight:800;line-height:1.2;color:var(--text)">${p.title}</h1>
+            <div style="display:flex;align-items:center;gap:.75rem">
+              <span style="color:var(--gold-hot);font-size:1.1rem;text-shadow:0 0 8px rgba(255,170,0,.5)">${stars(p.ratingsAvg)}</span>
+              <span style="font-size:.85rem;color:var(--text-muted)">${p.ratingsAvg.toFixed(1)} (${p.ratingsCount} reviews)</span>
+            </div>
+            <p style="font-size:2.2rem;font-weight:800;color:var(--gold);text-shadow:0 0 14px rgba(255,215,0,.4)">$${Number(p.price).toFixed(2)}</p>
+            <p style="font-size:.9rem;color:var(--text-muted);line-height:1.7">${p.description||''}</p>
+            <p style="font-size:.875rem;font-weight:600;${p.stockQty>0?'color:#34d399':'color:#f87171'}">${p.stockQty>0?`✓ ${p.stockQty} in stock`:'✕ Out of stock'}</p>
+
+            <div style="display:flex;gap:.75rem;align-items:center">
+              <input id="qty" type="number" min="1" max="${p.stockQty}" value="1"
+                class="input" style="width:80px;text-align:center" ${p.stockQty===0?'disabled':''}>
+              <button id="addBtn" class="btn btn-gold" style="flex:1;padding:.75rem;font-size:1rem;font-weight:700" ${p.stockQty===0?'disabled':''}>
+                ${p.stockQty===0?'Out of Stock':'🛒 Add to Cart'}
+              </button>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);border-radius:var(--radius)">
+              <span style="font-size:.8rem;color:var(--text-muted)">Sold by</span>
+              <span style="font-size:.9rem;font-weight:700;color:var(--gold)">${p.vendor?.storeName||'Unknown Vendor'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reviews -->
+        <section style="margin-top:3rem">
+          <h2 style="font-size:1.2rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:1rem">
+            Customer <span class="neon-gold">Reviews</span>
+          </h2>
+          <div id="reviewsList" style="display:flex;flex-direction:column;gap:.75rem;margin-bottom:1.5rem"></div>
+
+          <!-- Submit form (customers only) -->
+          <div id="reviewFormWrap"></div>
+        </section>`;
+
+      document.getElementById('content').style.display = 'block';
+
+      // Thumbnail switcher
+      document.querySelectorAll('[data-src]').forEach(img =>
+        img.addEventListener('click', () => {
+          document.getElementById('mainImg').src = img.dataset.src;
+        })
+      );
+
+      // Add to cart
+      document.getElementById('addBtn')?.addEventListener('click', async () => {
+        const user = auth.getUser();
+        if (user && user.role !== 'CUSTOMER') {
+          toast('Switch to a customer account to shop', 'error'); return;
+        }
+        if (!auth.isLoggedIn()) {
+          await cartStore.add(p.id, parseInt(document.getElementById('qty').value));
+          toast(`Added! Login to checkout →`);
+          return;
+        }
+        try {
+          await cartStore.add(p.id, parseInt(document.getElementById('qty').value));
+          toast(`"${p.title}" added to cart`);
+        } catch (ex) { toast(ex.message, 'error'); }
+      });
+
+      // ── Reviews ──────────────────────────────────────────────
+      function renderStars(r) {
+        return '★'.repeat(Math.max(0,Math.min(5,Math.round(r)))) + '☆'.repeat(5-Math.max(0,Math.min(5,Math.round(r))));
+      }
+
+      async function loadReviews() {
+        const { data: reviews } = await api.get(`/reviews?productId=${p.id}`).catch(() => ({ data: [] }));
+        const el = document.getElementById('reviewsList');
+        el.innerHTML = reviews.length
+          ? reviews.map(r => `
+              <div class="glass" style="padding:1rem">
+                <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.35rem">
+                  <span style="color:var(--gold);font-size:1rem">${renderStars(r.rating)}</span>
+                  <span style="font-size:.875rem;font-weight:700;color:var(--white)">${r.customer?.name||'Customer'}</span>
+                  <span style="font-size:.75rem;color:var(--text-muted);margin-left:auto">${new Date(r.createdAt).toLocaleDateString()}</span>
+                </div>
+                <p style="font-size:.875rem;color:var(--text-muted)">${r.comment||''}</p>
+              </div>`).join('')
+          : '<p style="color:var(--text-muted);font-size:.9rem">No reviews yet — be the first!</p>';
+      }
+
+      loadReviews();
+
+      // Show form only for logged-in customers
+      const user = auth.getUser();
+      if (user?.role === 'CUSTOMER') {
+        let selectedRating = 0;
+        document.getElementById('reviewFormWrap').innerHTML = `
+          <div class="glass" style="padding:1.25rem;margin-top:.5rem">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:.85rem;color:var(--white)">Leave a Review</h3>
+            <div id="starPicker" style="display:flex;gap:.3rem;font-size:1.6rem;cursor:pointer;margin-bottom:.75rem;user-select:none">
+              ${[1,2,3,4,5].map(i=>`<span data-v="${i}" style="color:var(--silver);transition:color .15s">★</span>`).join('')}
+            </div>
+            <textarea id="reviewComment" rows="3" class="input" placeholder="Share your experience…" style="resize:vertical;margin-bottom:.75rem"></textarea>
+            <button id="submitReview" class="btn btn-gold" style="width:100%">Submit Review</button>
+            <p id="reviewErr" style="color:#f87171;font-size:.85rem;margin-top:.5rem;display:none"></p>
+          </div>`;
+
+        // Star hover/click
+        const stars = document.querySelectorAll('#starPicker span');
+        stars.forEach(s => {
+          s.addEventListener('mouseenter', () => stars.forEach(x => x.style.color = x.dataset.v <= s.dataset.v ? 'var(--gold)' : 'var(--silver)'));
+          s.addEventListener('mouseleave', () => stars.forEach(x => x.style.color = x.dataset.v <= selectedRating ? 'var(--gold)' : 'var(--silver)'));
+          s.addEventListener('click', () => { selectedRating = parseInt(s.dataset.v); });
+        });
+
+        document.getElementById('submitReview').addEventListener('click', async () => {
+          const errEl = document.getElementById('reviewErr');
+          errEl.style.display = 'none';
+          if (!selectedRating) { errEl.textContent = 'Please select a star rating.'; errEl.style.display = 'block'; return; }
+          const comment = document.getElementById('reviewComment').value.trim();
+          try {
+            await api.post('/reviews', { productId: p.id, rating: selectedRating, comment });
+            toast('Review submitted!');
+            selectedRating = 0;
+            document.getElementById('reviewComment').value = '';
+            document.querySelectorAll('#starPicker span').forEach(x => x.style.color = 'var(--silver)');
+            loadReviews();
+          } catch (ex) {
+            errEl.textContent = ex.data?.errors?.map(e=>e.message).join(', ') || ex.message;
+            errEl.style.display = 'block';
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

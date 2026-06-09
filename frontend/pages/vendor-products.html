@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Products — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+    <main style="max-width:1440px;margin:0 auto;padding:2rem 2rem 4rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.75rem;flex-wrap:wrap;gap:1rem;">
+        <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">
+          <span class="neon-gold">My</span> <span class="neon-purple">Products</span>
+        </h1>
+        <button id="openAddModal" class="btn btn-gold">+ Add Product</button>
+      </div>
+      <div id="spinner" style="display:flex;justify-content:center;padding:4rem;"><div class="spinner"></div></div>
+      <div id="grid" style="display:none;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1.25rem;"></div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:200;align-items:center;justify-content:center;padding:1rem;">
+    <div class="glass" style="width:100%;max-width:500px;padding:2rem;animation:fadeUp .3s ease both;">
+      <h2 id="modalTitle" style="font-size:1.2rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:1.25rem;">
+        <span class="neon-gold">Add</span> Product
+      </h2>
+      <form id="productForm" style="display:flex;flex-direction:column;gap:.85rem;">
+        <input type="hidden" id="editId">
+        <input name="title" placeholder="Product title" required class="input">
+        <textarea name="description" placeholder="Description" rows="2" class="input" style="resize:vertical;"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+          <input name="price"    type="number" step="0.01" min="0.01" placeholder="Price ($)" required class="input">
+          <input name="stockQty" type="number" min="0"               placeholder="Stock qty"  required class="input">
+        </div>
+        <select name="category" required class="input">
+          <option value="">Select category…</option>
+          <option>Electronics</option><option>Clothing</option><option>Books</option>
+          <option>Home</option><option>Sports</option><option>Beauty</option>
+        </select>
+        <div>
+          <label style="font-size:.75rem;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;">Images (up to 5)</label>
+          <div id="existingImages" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem;"></div>
+          <input name="images" type="file" accept="image/*" multiple class="input" style="padding:.5rem;cursor:pointer;">
+          <p style="font-size:.72rem;color:var(--text-muted);margin-top:.25rem;">Uploading new images replaces existing ones.</p>
+        </div>
+        <p id="formErr" style="color:#f87171;font-size:.85rem;display:none;"></p>
+        <div style="display:flex;gap:.75rem;margin-top:.25rem;">
+          <button type="button" id="closeModal" class="btn btn-ghost" style="flex:1;">Cancel</button>
+          <button type="submit" class="btn btn-gold" style="flex:1;">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api, assetUrl } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { renderNavbar } from '../js/navbar.js';
+    import { toast } from '../js/toast.js';
+
+    if (!auth.require('VENDOR')) throw new Error();
+    await renderNavbar();
+
+    const vendorId = auth.getUser()?.vendor?.id || '';
+
+    async function loadProducts() {
+      document.getElementById('spinner').style.display = 'flex';
+      document.getElementById('grid').style.display = 'none';
+      const { data } = await api.get(`/products/vendor`).catch(() => ({ data: [] }));
+      document.getElementById('spinner').style.display = 'none';
+      const grid = document.getElementById('grid');
+      grid.style.display = 'grid';
+
+      if (!data.length) {
+        grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:3rem;">No products yet. Add your first one!</p>';
+        return;
+      }
+      grid.innerHTML = data.map((p, i) => `
+        <div class="product-card tilt-card card-enter" style="animation-delay:${i*0.05}s;cursor:pointer;" data-id="${p.id}">
+          <img src="${assetUrl(p.imageUrls?.[0])||'https://placehold.co/300x200/080610/C0C0C0?text=No+Image'}" alt="${p.title}" style="width:100%;height:160px;object-fit:cover;">
+          <div class="card-body">
+            <p class="card-category">${p.category}</p>
+            <h3 class="card-title">${p.title}</h3>
+            <div style="display:flex;justify-content:space-between;margin-top:.5rem;">
+              <span class="card-price">$${Number(p.price).toFixed(2)}</span>
+              <span style="font-size:.75rem;color:${p.stockQty<=5?'#f87171':'var(--text-muted)'};">Stock: ${p.stockQty}</span>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-top:.75rem;" onclick="event.stopPropagation()">
+              <button class="btn btn-ghost edit-btn" style="flex:1;padding:.3rem;font-size:.75rem;"
+                data-p='${JSON.stringify({id:p.id,title:p.title,description:p.description||'',price:p.price,stockQty:p.stockQty,category:p.category,imageUrls:p.imageUrls||[]})}'>Edit</button>
+              <button class="btn btn-ghost delete-btn" data-id="${p.id}" style="flex:1;padding:.3rem;font-size:.75rem;color:#f87171;border-color:rgba(239,68,68,0.35);">Delete</button>
+            </div>
+          </div>
+        </div>`).join('');
+
+      document.querySelectorAll('.product-card[data-id]').forEach(card =>
+        card.addEventListener('click', () => location.href = `product.html?id=${card.dataset.id}`)
+      );
+      document.querySelectorAll('.edit-btn').forEach((b) => b.addEventListener('click', () => openModal(JSON.parse(b.dataset.p))));
+      document.querySelectorAll('.delete-btn').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Delete this product?')) return;
+        try { await api.del(`/products/${b.dataset.id}`); toast('Deleted'); loadProducts(); }
+        catch (ex) { toast(ex.message, 'error'); }
+      }));
+    }
+
+    function openModal(p = null) {
+      const form = document.getElementById('productForm');
+      form.reset();
+      document.getElementById('formErr').style.display = 'none';
+      document.getElementById('editId').value = p?.id || '';
+      document.getElementById('modalTitle').innerHTML = p
+        ? '<span class="neon-gold">Edit</span> Product'
+        : '<span class="neon-gold">Add</span> Product';
+      if (p) { form.title.value=p.title; form.description.value=p.description; form.price.value=p.price; form.stockQty.value=p.stockQty; form.category.value=p.category; }
+      const existingEl = document.getElementById('existingImages');
+      existingEl.innerHTML = (p?.imageUrls||[]).map(url =>
+        `<img src="${assetUrl(url)}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid rgba(138,43,226,.35);">`
+      ).join('');
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    document.getElementById('openAddModal').addEventListener('click', () => openModal());
+    document.getElementById('closeModal').addEventListener('click', () => document.getElementById('modal').style.display='none');
+    document.getElementById('modal').addEventListener('click', (e) => { if (e.target===e.currentTarget) e.currentTarget.style.display='none'; });
+
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]');
+      const errEl = document.getElementById('formErr');
+      errEl.style.display = 'none';
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const fd = new FormData(e.target);
+      const editId = document.getElementById('editId').value;
+      try {
+        editId ? await api.uploadPut(`/products/${editId}`, fd) : await api.upload('/products', fd);
+        toast(editId ? 'Product updated' : 'Product created');
+        document.getElementById('modal').style.display = 'none';
+        loadProducts();
+      } catch (ex) {
+        errEl.textContent = ex.data?.errors?.map(e=>e.message).join(', ') || ex.message;
+        errEl.style.display = 'block';
+      } finally { btn.disabled = false; btn.textContent = 'Save Product'; }
+    });
+
+    loadProducts();
+  </script>
+</body>
+</html>

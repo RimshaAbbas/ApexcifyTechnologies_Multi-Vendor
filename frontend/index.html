@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop — MultiVendor</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .product-card img { transition: transform .4s ease; }
+    .product-card:hover img { transform: scale(1.06); }
+    .product-card { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+
+    <main style="max-width:1440px;margin:0 auto;padding:0 2rem 3rem">
+
+      <!-- Hero -->
+      <section class="hero">
+        <p style="font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--purple);margin-bottom:.75rem;text-shadow:0 0 10px var(--purple)">◈ Apexcify Technologies</p>
+        <h1 class="hero-title">The Future of Commerce</h1>
+        <p class="hero-sub">Discover premium products from verified vendors across the globe.</p>
+        <div style="margin-top:1.5rem;display:flex;justify-content:center;gap:.75rem;flex-wrap:wrap">
+          <a href="pages/register.html" class="btn btn-gold"  style="padding:.7rem 1.8rem">Start Selling</a>
+          <a href="#shop"               class="btn btn-ghost" style="padding:.7rem 1.8rem">Explore Shop</a>
+        </div>
+      </section>
+
+      <!-- Filters -->
+      <div id="shop" style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem">
+        <input id="search" type="search" class="input" placeholder="🔍  Search products…" style="flex:1;min-width:200px;max-width:380px">
+        <select id="category" class="input" style="width:auto">
+          <option value="">All Categories</option>
+          <option>Electronics</option><option>Clothing</option><option>Books</option>
+          <option>Home</option><option>Sports</option><option>Beauty</option>
+        </select>
+        <select id="sort" class="input" style="width:auto">
+          <option value="createdAt:desc">Newest</option>
+          <option value="price:asc">Price ↑</option>
+          <option value="price:desc">Price ↓</option>
+          <option value="ratingsAvg:desc">Top Rated</option>
+        </select>
+      </div>
+
+      <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1.25rem"></div>
+      <div id="pagination" style="display:none;justify-content:center;gap:.5rem;margin-top:2rem;flex-wrap:wrap"></div>
+    </main>
+  </div>
+
+  <script src="js/ui.js"></script>
+  <script type="module">
+    import { api, assetUrl } from './js/api.js';
+    import { renderNavbar } from './js/navbar.js';
+    import { toast } from './js/toast.js';
+    import { openProductModal } from './js/product-modal.js';
+
+    await renderNavbar();
+
+    let page = 1;
+
+    function qs() {
+      const [sortBy, order] = document.getElementById('sort').value.split(':');
+      return new URLSearchParams({
+        page, limit: 12,
+        search:   document.getElementById('search').value.trim(),
+        category: document.getElementById('category').value,
+        sortBy, order,
+      }).toString();
+    }
+
+    function skeletons() {
+      document.getElementById('grid').innerHTML = Array.from({length:8},(_,i)=>`
+        <div class="product-card" style="animation-delay:${i*.05}s">
+          <div class="skeleton" style="height:200px;border-radius:0"></div>
+          <div style="padding:1rem;display:flex;flex-direction:column;gap:.6rem">
+            <div class="skeleton" style="height:.7rem;width:40%;border-radius:4px"></div>
+            <div class="skeleton" style="height:1rem;width:85%;border-radius:4px"></div>
+            <div class="skeleton" style="height:1.2rem;width:35%;border-radius:4px"></div>
+          </div>
+        </div>`).join('');
+    }
+
+    async function load() {
+      skeletons();
+      try {
+        const { data, meta } = await api.get(`/products?${qs()}`);
+        renderGrid(data);
+        renderPagination(meta);
+      } catch {
+        document.getElementById('grid').innerHTML = `
+          <div class="empty-state">
+            <h3>Backend offline or no products yet</h3>
+            <p>Run: <code style="color:var(--purple)">npm run dev</code> in the backend folder</p>
+          </div>`;
+      }
+    }
+
+    function renderGrid(products) {
+      const grid = document.getElementById('grid');
+      if (!products.length) {
+        grid.innerHTML = '<div class="empty-state"><h3>No products found</h3><p>Try a different search or category.</p></div>';
+        return;
+      }
+
+      grid.innerHTML = products.map((p, i) => `
+        <div class="product-card tilt-card card-enter"
+             data-product-id="${p.id}"
+             role="button" tabindex="0"
+             style="animation-delay:${i*.06}s;cursor:pointer">
+          <div style="position:relative;overflow:hidden">
+            <img src="${assetUrl(p.imageUrls?.[0])||'https://placehold.co/400x300/0a0512/8a2be2?text=No+Image'}"
+                 alt="${p.title}" loading="lazy"
+                 style="width:100%;height:200px;object-fit:cover;display:block">
+            <div style="position:absolute;top:.6rem;left:.6rem">
+              <span class="badge badge-purple">${p.category}</span>
+            </div>
+            ${p.stockQty===0?'<div style="position:absolute;inset:0;background:rgba(10,5,18,.65);display:flex;align-items:center;justify-content:center"><span class="badge badge-red">Out of Stock</span></div>':''}
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">${p.title}</h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.5rem">
+              <span class="card-price">$${Number(p.price).toFixed(2)}</span>
+              <span style="font-size:.78rem;color:var(--gold-hot)">★ ${p.ratingsAvg.toFixed(1)}</span>
+            </div>
+            <p class="card-vendor">by ${p.vendor?.storeName??'Unknown'}</p>
+          </div>
+        </div>`).join('');
+
+      // ── Single delegated click handler — NO page navigation ──────────────
+      grid.addEventListener('click', (e) => {
+        e.preventDefault();
+        const card = e.target.closest('[data-product-id]');
+        if (card) openProductModal(card.dataset.productId);
+      });
+
+      // Keyboard accessibility
+      grid.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const card = e.target.closest('[data-product-id]');
+          if (card) openProductModal(card.dataset.productId);
+        }
+      });
+    }
+
+    function renderPagination({page:pg, pages}) {
+      const el = document.getElementById('pagination');
+      if (pages<=1){el.style.display='none';return;}
+      el.style.display='flex';
+      el.innerHTML = Array.from({length:pages},(_,i)=>i+1).map(n=>
+        `<button data-p="${n}" class="btn ${n===pg?'btn-gold':'btn-ghost'}" style="min-width:36px;padding:.4rem .75rem">${n}</button>`
+      ).join('');
+      el.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{
+        e.preventDefault(); page=+b.dataset.p; load();
+        window.scrollTo({top:400,behavior:'smooth'});
+      }));
+    }
+
+    let t;
+    ['search','category'].forEach(id=>
+      document.getElementById(id).addEventListener('input', ()=>{
+        clearTimeout(t); page=1; t=setTimeout(load, 320);
+      })
+    );
+    document.getElementById('sort').addEventListener('change', ()=>{ page=1; load(); });
+
+    load();
+  </script>
+</body>
+</html>

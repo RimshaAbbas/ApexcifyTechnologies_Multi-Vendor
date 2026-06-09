@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  cart         Cart?
+  orders       Order[]
+  reviews      Review[]
+  vendor       Vendor?
+
+  @@map("users")
+}
+
+model Vendor {
+  id          String       @id @default(cuid())
+  userId      String       @unique @map("user_id")
+  storeName   String       @unique @map("store_name")
+  description String?
+  logo        String?
+  status      VendorStatus @default(PENDING)
+  orderItems  OrderItem[]
+  products    Product[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vendors")
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  vendorId     String      @map("vendor_id")
+  title        String
+  description  String?
+  price        Decimal     @db.Decimal(10, 2)
+  stockQty     Int         @default(0) @map("stock_quantity")
+  imageUrls    String[]    @map("image_urls")
+  category     String
+  ratingsAvg   Float       @default(0) @map("ratings_avg")
+  ratingsCount Int         @default(0) @map("ratings_count")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  vendor       Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  reviews      Review[]
+
+  @@index([category])
+  @@index([vendorId])
+  @@map("products")
+}
+
+model Cart {
+  id         String     @id @default(cuid())
+  customerId String     @unique @map("customer_id")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+  items      CartItem[]
+  customer   User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String  @map("cart_id")
+  productId String  @map("product_id")
+  quantity  Int     @default(1)
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  customerId      String        @map("customer_id")
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(10, 2)
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  shippingAddress Json          @map("shipping_address")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  items           OrderItem[]
+  customer        User          @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String  @map("order_id")
+  productId       String  @map("product_id")
+  vendorId        String  @map("vendor_id")
+  quantity        Int
+  priceAtPurchase Decimal @map("price_at_purchase") @db.Decimal(10, 2)
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product @relation(fields: [productId], references: [id])
+  vendor          Vendor  @relation(fields: [vendorId], references: [id])
+
+  @@index([vendorId])
+  @@map("order_items")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  customerId String   @map("customer_id")
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  customer   User     @relation(fields: [customerId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, customerId])
+  @@index([productId])
+  @@map("reviews")
+}
+
+enum Role {
+  ADMIN
+  VENDOR
+  CUSTOMER
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}

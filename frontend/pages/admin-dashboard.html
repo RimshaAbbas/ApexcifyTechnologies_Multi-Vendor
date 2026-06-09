@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="grid-floor"></div>
+  <div class="content-layer">
+    <div id="navbar"></div>
+
+    <main style="max-width:1440px;margin:0 auto;padding:2rem 2rem 4rem;">
+      <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:1.75rem;">
+        <span class="neon-purple">Admin</span> <span class="neon-gold">Console</span>
+      </h1>
+
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem;">
+        <div class="stat-card"><p class="stat-label">Platform Revenue</p><p id="statRevenue" class="stat-value">—</p></div>
+        <div class="stat-card" data-goto="orders" style="cursor:pointer;"><p class="stat-label">Total Orders</p><p id="statOrders" class="stat-value" style="color:var(--text);">—</p></div>
+        <div class="stat-card" data-goto="users"  style="cursor:pointer;"><p class="stat-label">Total Users</p><p id="statUsers" class="stat-value" style="color:var(--text);">—</p></div>
+        <div class="stat-card" data-goto="vendors" style="cursor:pointer;"><p class="stat-label">Total Vendors</p><p id="statVendors" class="stat-value" style="color:var(--purple);">—</p></div>
+        <div class="stat-card" data-goto="vendors" data-filter="PENDING" style="cursor:pointer;"><p class="stat-label">Pending Approvals</p><p id="statPending" class="stat-value" style="color:#facc15;">—</p></div>
+      </div>
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:1.5rem;border-bottom:1px solid rgba(138,43,226,0.2);margin-bottom:1.5rem;">
+        <button class="tab-btn" data-tab="vendors" style="padding:.6rem 0;font-size:.85rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:none;border:none;border-bottom:2px solid var(--gold);color:var(--gold);cursor:pointer;font-family:inherit;">Vendors</button>
+        <button class="tab-btn" data-tab="users"   style="padding:.6rem 0;font-size:.85rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);cursor:pointer;font-family:inherit;">Users</button>
+        <button class="tab-btn" data-tab="orders"  style="padding:.6rem 0;font-size:.85rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);cursor:pointer;font-family:inherit;">Recent Orders</button>
+      </div>
+
+      <!-- Vendors panel -->
+      <div id="tab-vendors">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+          <button class="vendor-filter btn btn-gold"   data-status=""          style="padding:.3rem .9rem;font-size:.75rem;">All</button>
+          <button class="vendor-filter btn btn-ghost"  data-status="PENDING"   style="padding:.3rem .9rem;font-size:.75rem;">Pending</button>
+          <button class="vendor-filter btn btn-ghost"  data-status="APPROVED"  style="padding:.3rem .9rem;font-size:.75rem;">Approved</button>
+          <button class="vendor-filter btn btn-ghost"  data-status="SUSPENDED" style="padding:.3rem .9rem;font-size:.75rem;">Suspended</button>
+        </div>
+        <div id="vendorSpinner" style="display:flex;justify-content:center;padding:3rem;"><div class="spinner"></div></div>
+        <div id="vendorTable" style="display:none;background:var(--void-card);border:1px solid rgba(138,43,226,0.2);border-radius:var(--radius-lg);overflow:hidden;backdrop-filter:blur(12px);">
+          <div style="overflow-x:auto;">
+            <table class="cyber-table">
+              <thead><tr><th>Store</th><th>Owner</th><th>Products</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="vendorBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users panel -->
+      <div id="tab-users" style="display:none;">
+        <div id="userSpinner" style="display:flex;justify-content:center;padding:3rem;"><div class="spinner"></div></div>
+        <div id="userTable" style="display:none;background:var(--void-card);border:1px solid rgba(138,43,226,0.2);border-radius:var(--radius-lg);overflow:hidden;backdrop-filter:blur(12px);">
+          <div style="overflow-x:auto;">
+            <table class="cyber-table">
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="userBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders panel -->
+      <div id="tab-orders" style="display:none;">
+        <div style="background:var(--void-card);border:1px solid rgba(138,43,226,0.2);border-radius:var(--radius-lg);overflow:hidden;backdrop-filter:blur(12px);">
+          <div style="overflow-x:auto;">
+            <table class="cyber-table">
+              <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th></tr></thead>
+              <tbody id="ordersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { renderNavbar } from '../js/navbar.js';
+    import { toast } from '../js/toast.js';
+
+    if (!auth.require('ADMIN')) throw new Error();
+    await renderNavbar();
+
+    const SC = { PENDING:'badge-yellow', PROCESSING:'badge-purple', SHIPPED:'badge-purple', DELIVERED:'badge-green', CANCELLED:'badge-red', APPROVED:'badge-green', SUSPENDED:'badge-red' };
+    const RC = { ADMIN:'badge-red', VENDOR:'badge-purple', CUSTOMER:'badge badge-gold' };
+
+    const { data: dash } = await api.get('/admin/dashboard').catch(() => ({ data: {} }));
+    document.getElementById('statRevenue').textContent = `$${Number(dash.platformRevenue||0).toFixed(2)}`;
+    document.getElementById('statOrders').textContent  = dash.totalOrders ?? 0;
+    document.getElementById('statUsers').textContent   = dash.totalUsers ?? 0;
+    document.getElementById('statVendors').textContent = dash.totalVendors ?? 0;
+    document.getElementById('statPending').textContent = dash.pendingVendors ?? 0;
+
+    document.getElementById('ordersBody').innerHTML = dash.recentOrders?.length
+      ? dash.recentOrders.map((o) => `
+          <tr>
+            <td style="font-family:monospace;font-size:.8rem;color:var(--text-muted);">#${o.id.slice(-8).toUpperCase()}</td>
+            <td>${o.customer?.name}<br><span style="font-size:.75rem;color:var(--text-muted);">${o.customer?.email}</span></td>
+            <td style="color:var(--gold);font-weight:700;">$${Number(o.totalAmount).toFixed(2)}</td>
+            <td><span class="badge ${SC[o.status]||'badge-purple'}">${o.status}</span></td>
+            <td><span class="badge ${o.paymentStatus==='PAID'?'badge-green':'badge-yellow'}">${o.paymentStatus}</span></td>
+            <td style="color:var(--text-muted);font-size:.8rem;">${new Date(o.createdAt).toLocaleDateString()}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">No orders yet.</td></tr>';
+
+    async function loadVendors(status = '') {
+      document.getElementById('vendorSpinner').style.display = 'flex';
+      document.getElementById('vendorTable').style.display = 'none';
+      const { data } = await api.get(`/admin/vendors${status ? '?status='+status : ''}`).catch(() => ({ data: [] }));
+      document.getElementById('vendorSpinner').style.display = 'none';
+      document.getElementById('vendorTable').style.display = 'block';
+      document.getElementById('vendorBody').innerHTML = data.length
+        ? data.map((v) => `
+            <tr>
+              <td style="font-weight:600;color:var(--gold);">${v.storeName}</td>
+              <td>${v.user?.name}<br><span style="font-size:.75rem;color:var(--text-muted);">${v.user?.email}</span></td>
+              <td>${v._count?.products ?? 0}</td>
+              <td><span class="badge ${SC[v.status]||'badge-purple'}">${v.status}</span></td>
+              <td style="display:flex;gap:.4rem;flex-wrap:wrap;padding:.85rem 1rem;">
+                ${v.status!=='APPROVED'   ? `<button class="btn btn-ghost status-btn" data-id="${v.id}" data-status="APPROVED"  style="padding:.25rem .7rem;font-size:.72rem;color:#34d399;border-color:rgba(16,185,129,0.4);">Approve</button>` : ''}
+                ${v.status!=='SUSPENDED'  ? `<button class="btn btn-ghost status-btn" data-id="${v.id}" data-status="SUSPENDED" style="padding:.25rem .7rem;font-size:.72rem;color:#f87171;border-color:rgba(239,68,68,0.4);">Suspend</button>` : ''}
+              </td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No vendors found.</td></tr>';
+
+      document.querySelectorAll('.status-btn').forEach((btn) =>
+        btn.addEventListener('click', async () => {
+          try {
+            await api.patch(`/admin/vendors/${btn.dataset.id}/status`, { status: btn.dataset.status });
+            toast(`Vendor ${btn.dataset.status.toLowerCase()}`);
+            loadVendors(activeFilter);
+          } catch (ex) { toast(ex.message, 'error'); }
+        })
+      );
+    }
+
+    async function loadUsers() {
+      document.getElementById('userSpinner').style.display = 'flex';
+      document.getElementById('userTable').style.display = 'none';
+      const { data } = await api.get('/admin/users?limit=50').catch(() => ({ data: [] }));
+      document.getElementById('userSpinner').style.display = 'none';
+      document.getElementById('userTable').style.display = 'block';
+      const me = auth.getUser();
+      document.getElementById('userBody').innerHTML = data.length
+        ? data.map((u) => `
+            <tr>
+              <td style="font-weight:600;">${u.name}</td>
+              <td style="color:var(--text-muted);">${u.email}</td>
+              <td><span class="badge ${SC[u.role]||RC[u.role]||'badge-purple'}">${u.role}</span></td>
+              <td style="color:var(--text-muted);font-size:.8rem;">${new Date(u.createdAt).toLocaleDateString()}</td>
+              <td>${u.id !== me.id ? `<button class="btn btn-ghost delete-user" data-id="${u.id}" style="padding:.25rem .7rem;font-size:.72rem;color:#f87171;border-color:rgba(239,68,68,0.35);">Delete</button>` : '—'}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">No users.</td></tr>';
+
+      document.querySelectorAll('.delete-user').forEach((btn) =>
+        btn.addEventListener('click', async () => {
+          if (!confirm('Permanently delete this user?')) return;
+          try { await api.del(`/admin/users/${btn.dataset.id}`); toast('User deleted'); loadUsers(); }
+          catch (ex) { toast(ex.message, 'error'); }
+        })
+      );
+    }
+
+    let activeFilter = '';
+    let tabLoaded = { vendors: false, users: false };
+
+    document.querySelectorAll('.vendor-filter').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.vendor-filter').forEach((b) => {
+          b.className = 'vendor-filter btn btn-ghost'; b.style.cssText = 'padding:.3rem .9rem;font-size:.75rem;';
+        });
+        btn.className = 'vendor-filter btn btn-gold'; btn.style.cssText = 'padding:.3rem .9rem;font-size:.75rem;';
+        activeFilter = btn.dataset.status;
+        loadVendors(activeFilter);
+      })
+    );
+
+    document.querySelectorAll('.tab-btn').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach((b) => {
+          b.style.borderBottomColor = 'transparent'; b.style.color = 'var(--text-muted)';
+        });
+        btn.style.borderBottomColor = 'var(--gold)'; btn.style.color = 'var(--gold)';
+        ['vendors','users','orders'].forEach((t) =>
+          document.getElementById(`tab-${t}`).style.display = t === btn.dataset.tab ? 'block' : 'none'
+        );
+        if (btn.dataset.tab === 'users' && !tabLoaded.users) { tabLoaded.users = true; loadUsers(); }
+      })
+    );
+
+    loadVendors();
+
+    // Stat card shortcuts
+    document.querySelectorAll('.stat-card[data-goto]').forEach((card) =>
+      card.addEventListener('click', () => {
+        const tab = card.dataset.goto;
+        document.querySelector(`.tab-btn[data-tab="${tab}"]`).click();
+        if (tab === 'vendors' && card.dataset.filter) {
+          document.querySelector(`.vendor-filter[data-status="${card.dataset.filter}"]`).click();
+        }
+      })
+    );
+  </script>
+</body>
+</html>

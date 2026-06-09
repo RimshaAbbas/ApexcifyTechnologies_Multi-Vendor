@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register — MultiVendor</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .role-toggle { display:flex; gap:.5rem; margin-bottom:.25rem; }
+    .role-toggle input[type=radio] { display:none; }
+    .role-toggle label {
+      flex:1; padding:.6rem; text-align:center; border-radius:6px; cursor:pointer;
+      font-size:.8rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+      border:1px solid rgba(138,43,226,.4); color:var(--text-muted);
+      transition: all .25s ease;
+    }
+    .role-toggle input:checked + label {
+      color:#fff;
+    }
+    #role-customer:checked + label { border-color:var(--purple); color:var(--purple); box-shadow:var(--glow-border-purple); }
+    #role-vendor:checked  + label { border-color:var(--gold);   color:var(--gold);   box-shadow:var(--glow-border-gold);   }
+
+    #vendor-fields {
+      display:flex; flex-direction:column; gap:1rem;
+      overflow:hidden; max-height:0;
+      transition: max-height .35s ease, opacity .35s ease;
+      opacity:0;
+    }
+    #vendor-fields.open { max-height:300px; opacity:1; }
+  </style>
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;">
+  <div class="grid-floor"></div>
+
+  <div class="auth-container content-layer">
+    <h1><span class="neon-gold">Create</span> <span class="neon-purple">Account</span></h1>
+    <div class="auth-divider"></div>
+
+    <form id="regForm" style="display:flex;flex-direction:column;gap:1rem;">
+
+      <!-- Role toggle -->
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:.5rem;">I want to…</label>
+        <div class="role-toggle">
+          <input type="radio" name="role" id="role-customer" value="CUSTOMER" checked>
+          <label for="role-customer">Join as Customer</label>
+          <input type="radio" name="role" id="role-vendor" value="VENDOR">
+          <label for="role-vendor">Become a Vendor</label>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Full Name</label>
+        <input name="name" type="text" required class="input" placeholder="John Doe" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Email</label>
+        <input name="email" type="email" required autocomplete="email" class="input" placeholder="you@example.com" style="margin-top:.4rem;">
+      </div>
+      <div>
+        <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Password <span style="font-weight:400;letter-spacing:0;">(min 8 chars)</span></label>
+        <input name="password" type="password" required minlength="8" class="input" placeholder="••••••••" style="margin-top:.4rem;">
+      </div>
+
+      <!-- Vendor-only fields (hidden by default) -->
+      <div id="vendor-fields">
+        <div>
+          <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);">Store Name</label>
+          <input name="storeName" id="storeNameInput" type="text" class="input" placeholder="My Awesome Shop" style="margin-top:.4rem;border-color:var(--gold);box-shadow:var(--glow-border-gold);">
+        </div>
+        <div>
+          <label style="font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Store Description <span style="font-weight:400;letter-spacing:0;">(optional)</span></label>
+          <textarea name="description" rows="3" class="input" placeholder="Tell customers what you sell…" style="margin-top:.4rem;resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <p id="errMsg" style="color:#f87171;font-size:.85rem;display:none;"></p>
+      <button type="submit" id="submitBtn" class="btn btn-purple" style="margin-top:.5rem;width:100%;font-size:.95rem;padding:.75rem;">
+        Initialize Account
+      </button>
+    </form>
+
+    <p style="margin-top:1.25rem;text-align:center;font-size:.85rem;color:var(--text-muted);">
+      Already have an account?
+      <a href="login.html" style="color:var(--purple);text-decoration:none;font-weight:600;">Sign in →</a>
+    </p>
+  </div>
+
+  <script src="../js/ui.js"></script>
+  <script type="module">
+    import { api } from '../js/api.js';
+    import { auth } from '../js/auth.js';
+    import { cartStore } from '../js/cart-store.js';
+
+    if (auth.isLoggedIn()) location.href = '../index.html';
+
+    const vendorFields  = document.getElementById('vendor-fields');
+    const storeNameInput = document.getElementById('storeNameInput');
+    const submitBtn     = document.getElementById('submitBtn');
+
+    // Toggle vendor fields visibility + required constraint
+    document.querySelectorAll('input[name=role]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const isVendor = radio.value === 'VENDOR' && radio.checked;
+        vendorFields.classList.toggle('open', isVendor);
+        storeNameInput.required = isVendor;
+        submitBtn.textContent   = isVendor ? 'Launch Store' : 'Initialize Account';
+        submitBtn.className     = isVendor ? 'btn btn-gold' : 'btn btn-purple';
+      });
+    });
+
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button[type=submit]');
+      const err = document.getElementById('errMsg');
+      err.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        const fd   = new FormData(e.target);
+        const role = fd.get('role');
+
+        const payload = {
+          name: fd.get('name'), email: fd.get('email'),
+          password: fd.get('password'), role,
+        };
+        if (role === 'VENDOR') {
+          payload.storeName   = fd.get('storeName');
+          payload.description = fd.get('description');
+        }
+
+        const { token, user } = await api.post('/auth/register', payload);
+        auth.save(token, user);
+
+        if (role === 'VENDOR') {
+          location.href = 'vendor-dashboard.html';
+        } else {
+          await cartStore.mergeOnLogin();
+          location.href = '../index.html';
+        }
+      } catch (ex) {
+        const detail = ex.data?.errors?.map(e => e.message).join(', ') || ex.message;
+        err.textContent = detail;
+        err.style.display = 'block';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
