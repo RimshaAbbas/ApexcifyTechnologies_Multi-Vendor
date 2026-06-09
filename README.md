@@ -42,46 +42,6 @@ A premium, neon-styled multi-vendor e-commerce platform built with **Node.js**, 
 | Email      | Nodemailer (Mailtrap / Gmail compatible)        |
 | Frontend   | Vanilla HTML · CSS · JavaScript (no framework) |
 
-## Project Structure
-
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma       # Database models
-│   │   ├── seed.js             # Seed data
-│   │   └── migrations/         # Prisma migrations
-│   ├── src/
-│   │   ├── server.js           # Express app entry point
-│   │   ├── controllers/        # Business logic per resource
-│   │   ├── routes/             # API route definitions
-│   │   ├── middleware/         # Auth, validation, error handler
-│   │   └── utils/              # Prisma client, upload, email helpers
-│   ├── uploads/                # Uploaded product images (static)
-│   ├── .env.example            # Environment variable template
-│   └── package.json
-└── frontend/
-    ├── index.html              # Home / product listing
-    ├── pages/
-    │   ├── login.html
-    │   ├── register.html
-    │   ├── vendor-register.html
-    │   ├── vendor-dashboard.html
-    │   ├── vendor-products.html
-    │   ├── admin-dashboard.html
-    │   ├── product.html
-    │   ├── cart.html
-    │   └── orders.html
-    ├── css/
-    │   └── styles.css          # Neon-themed global styles
-    └── js/
-        ├── api.js              # Centralized fetch wrapper
-        ├── auth.js             # Login / session helpers
-        ├── ui.js               # Shared UI rendering
-        ├── navbar.js           # Dynamic navbar
-        ├── cart-store.js       # Client-side cart state
-        ├── product-modal.js    # Product detail modal
-        └── toast.js            # Toast notification utility
-
-
 ## Database Models
 
 - **User** — customers, vendors, and admins (role-based)
